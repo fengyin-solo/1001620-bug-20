@@ -28,14 +28,24 @@ class Store:
         return None
 
     def overview(self) -> dict[str, object]:
+        # 机坪巡查的待处理/异常量与列表共用状态口径，避免看板和列表对不上。
+        from app.services.apron import is_abnormal as apron_abnormal
+        from app.services.apron import is_pending as apron_pending
+
         modules: list[dict[str, object]] = []
         for name in self.module_names():
             rows = self.rows(name)
+            if name == "apron":
+                pending = sum(1 for row in rows if apron_pending(row))
+                abnormal = sum(1 for row in rows if apron_abnormal(row))
+            else:
+                pending = sum(1 for row in rows if row.get("pending"))
+                abnormal = sum(1 for row in rows if row.get("abnormal"))
             modules.append({
                 "name": name,
                 "created": len(rows),
-                "pending": sum(1 for row in rows if row.get("pending")),
-                "abnormal": sum(1 for row in rows if row.get("abnormal")),
+                "pending": pending,
+                "abnormal": abnormal,
             })
         cards = [
             {"label": "业务模块", "value": len(modules)},
