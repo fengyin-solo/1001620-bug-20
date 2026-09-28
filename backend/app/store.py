@@ -10,6 +10,14 @@ from app.seed import SEED_ROWS
 
 
 class Store:
+    # 待处理口径策略：模块注册自己的「待处理状态集合」后，总览按状态派生数字；
+    # 没注册的模块仍沿用记录上的 pending 标记。这样列表、模块汇总、总览三处口径一致。
+    pending_statuses: dict[str, set[str]] = {}
+
+    @classmethod
+    def register_pending_statuses(cls, module: str, statuses: set[str]) -> None:
+        cls.pending_statuses[module] = set(statuses)
+
     def __init__(self) -> None:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
@@ -27,6 +35,12 @@ class Store:
                 return row
         return None
 
+    def _is_pending(self, module: str, row: dict[str, Any]) -> bool:
+        policy = self.pending_statuses.get(module)
+        if policy is not None:
+            return str(row.get("status") or "") in policy
+        return bool(row.get("pending"))
+
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []
         for name in self.module_names():
@@ -34,7 +48,7 @@ class Store:
             modules.append({
                 "name": name,
                 "created": len(rows),
-                "pending": sum(1 for row in rows if row.get("pending")),
+                "pending": sum(1 for row in rows if self._is_pending(name, row)),
                 "abnormal": sum(1 for row in rows if row.get("abnormal")),
             })
         cards = [
